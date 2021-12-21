@@ -1,3 +1,4 @@
+import Control.Monad.Memo
 import qualified Data.Map as Map
 import Data.Maybe
 
@@ -59,6 +60,7 @@ step st sumDice = case turn st of
   True -> FullState (pos1 st) (score1 st) pos2' score2' False
     where (pos2', score2') = updatePosScore sumDice (pos2 st, score2 st)
 
+gameScore :: FullState -> Maybe Integer
 gameScore st
   | score1 st >= 21 = Just 1
   | score2 st >= 21 = Just 0
@@ -67,25 +69,15 @@ gameScore st
 sumDices :: [Int]
 sumDices = [r1 + r2 + r3 | r1 <- [1..3], r2 <- [1..3], r3 <- [1..3]]
 
-memoSum :: StateMap -> FullState -> [Int] -> (StateMap, Integer)
-memoSum m st [] = (m, 0)
-memoSum m st [d] = (m', n')
-  where (m', n') = memoRecursive m (step st d)
-memoSum m st (d:ds) = (m'', n' + n'')
-  where (m', n') = memoRecursive m (step st d)
-        (m'', n'') = memoSum m' st ds
-
-memoRecursive :: StateMap -> FullState -> (StateMap, Integer)
-memoRecursive m st = case gameScore st of
-  Just x -> (m, x)
-  Nothing ->
-    case Map.lookup st m of
-      Just n -> (m, n)  -- already memoised
-      Nothing -> (Map.insert st n' m', n')
-        where (m', n') = memoSum m st sumDices
+numWins :: FullState -> Memo FullState Integer Integer
+numWins st = case gameScore st of
+  Just x -> return x
+  Nothing -> do
+    s <- sequence [memo numWins (step st d) | d <- sumDices]
+    return (sum s)
 
 solvePart2 :: (Int, Int) -> Integer
-solvePart2 (p1, p2) = snd $ memoRecursive Map.empty (FullState p1 0 p2 0 False)
+solvePart2 (p1, p2) = startEvalMemo $ numWins $ FullState p1 0 p2 0 False
 
 main = do
     let pos = (10, 9)
